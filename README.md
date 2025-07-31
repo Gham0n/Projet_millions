@@ -21,6 +21,7 @@ Ce projet est une application web permettant de rechercher des produits électri
 
 ## 📁 Structure du projet
 
+```
 .
 ├── backend/
 │ ├── server.js # Serveur Express.js
@@ -32,7 +33,7 @@ Ce projet est une application web permettant de rechercher des produits électri
 │ │ └── Recherche.jsx # Composant React principal
 │ └── public/
 ├── README.md
-
+```
 
 ---
 
