@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import Papa from 'papaparse';
+import React, { useState } from 'react';
 
 const styles = {
   mainContent: {
@@ -26,6 +25,9 @@ const styles = {
     backgroundColor: '#3641dbff',
     color: '#fff',
     cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
   },
   resultItem: {
     marginTop: '20px',
@@ -54,40 +56,64 @@ const styles = {
     color: '#0052cc',
     textDecoration: 'none',
   },
+  spinner: {
+    width: '16px',
+    height: '16px',
+    border: '3px solid #fff',
+    borderTop: '3px solid #3641dbff',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
 };
 
+// Inject spinner animation (car React inline ne gère pas les keyframes)
+const styleSheet = document.styleSheets[0];
+const keyframes = `
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+`;
+styleSheet.insertRule(keyframes, styleSheet.cssRules.length);
+
 export default function Recherche() {
-  const [csvData, setCsvData] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Charger et parser le fichier CSV depuis /public/produits.csv
-    Papa.parse('/produits.csv', {
-      download: true,
-      header: true,
-      complete: (results) => {
-        setCsvData(results.data);
-      },
-      error: (err) => {
-        console.error('Erreur lors du chargement CSV:', err);
-      },
-    });
-  }, []);
-
-  const handleSearch = () => {
+  const handleSearch = async () => {
+    console.log('Recherche lancée pour:', searchTerm);
     setLoading(true);
-    const filtered = csvData.filter((item) =>
-      item.référence_fabricant.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setResults(filtered);
-    setLoading(false);
+    setResults(null);
+
+    try {
+      const body = searchTerm.trim() === "" ? { refFab: "" } : { refFab: searchTerm };
+
+      const response = await fetch('http://localhost:4000/api/recherche-produit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+      console.log('Réponse du backend:', data);
+
+      if (response.ok && Array.isArray(data.result)) {
+        setResults(data.result);
+      } else {
+        setResults([]);
+      }
+    } catch (error) {
+      console.error('Erreur fetch:', error);
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <main style={styles.mainContent}>
-      <h2>Page de recherche !</h2>
+      <h2>Page de recherche</h2>
       <p>Utilisez notre moteur de recherche pour trouver ce que vous cherchez.</p>
       <input
         type="text"
@@ -96,11 +122,10 @@ export default function Recherche() {
         onChange={(e) => setSearchTerm(e.target.value)}
         style={styles.input}
       />
-      <button onClick={handleSearch} style={styles.button}>
-        Rechercher
+      <button onClick={handleSearch} style={styles.button} disabled={loading}>
+        {loading && <div style={styles.spinner}></div>}
+        {loading ? 'Recherche en cours...' : 'Rechercher'}
       </button>
-
-      {loading && <p>Chargement...</p>}
 
       {results && (
         <>

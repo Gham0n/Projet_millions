@@ -9,6 +9,8 @@ import time
 import re
 import sys
 
+
+
 #845091
 #NEM2403SEEC
 #7848298
@@ -348,55 +350,49 @@ def rechercher_produit_yesss(ref_fab):
     soup_produit = BeautifulSoup(resp_produit.text, "html.parser")
     return extraire_infos_depuis_page(soup_produit, url_produit)
 
-
 if __name__ == "__main__":
-    print("Bienvenue dans le script d'ajout de produit dans produits.csv")
-    print("Ce script permet de rechercher un produit sur Rexel, Sonepar et Yesss,")
-    #ref_fab = input("Entrer la référence fabricant : ").strip()
-    if(len(sys.argv) < 2):
-        print("Aucune référence fabricant fournie. Fin du script.")
+    if len(sys.argv) < 2:
+        print(json.dumps({"error": "Aucune référence fabricant fournie."}))
         sys.exit(1)
-    
+
     ref_fab = sys.argv[1].strip()
 
-
-    print(f"\n🔍 Recherche du produit avec la référence : {ref_fab}")
-
     if not ref_fab:
-        print("Aucune référence fournie. Fin du script.")
-    elif produit_existe(ref_fab):
-        print(f"✅ Le produit avec la référence {ref_fab} est déjà dans produits.csv")
+        print(json.dumps({"error": "Référence fabricant vide."}))
+        sys.exit(1)
+
+    if produit_existe(ref_fab):
+        # On retourne le produit existant depuis produits.csv
+        # (tu peux adapter si tu as une fonction pour ça)
+        print(json.dumps([{"référence_fabricant": ref_fab, "message": "déjà présent"}]))
+        sys.exit(0)
+
+    rexel = rechercher_produit_rexel(ref_fab)
+    sonepar = rechercher_produit_sonepar(ref_fab)
+    yesss = rechercher_produit_yesss(ref_fab)
+
+    nom_produit = (
+        (rexel and rexel.get("nom_produit")) or
+        (sonepar and sonepar.get("nom_produit")) or
+        (yesss and yesss.get("nom_produit")) or
+        "Nom inconnu"
+    )
+
+    data = {
+        "référence_fabricant": ref_fab,
+        "nom_produit": nom_produit,
+        "url_produit_rexel": rexel.get("url_produit") if rexel else "",
+        "image_produit_rexel": rexel.get("image_produit") if rexel else "",
+        "url_produit_sonepar": sonepar.get("url_produit") if sonepar else "",
+        "image_produit_sonepar": sonepar.get("image_produit") if sonepar else "",
+        "url_produit_yesss": yesss.get("url_produit") if yesss else "",
+        "image_produit_yesss": yesss.get("image_produit") if yesss else ""
+    }
+
+    if rexel or sonepar or yesss:
+        sauvegarder_produit_csv(data)
+        print(json.dumps([data]))  # IMPORTANT : une liste car React s’attend à une liste d’objets
+        sys.exit(0)
     else:
-        rexel = rechercher_produit_rexel(ref_fab)
-        sonepar = rechercher_produit_sonepar(ref_fab)
-        yesss = rechercher_produit_yesss(ref_fab) 
-
-        # Nom produit : priorité Rexel, sinon Sonepar, sinon 'Nom inconnu'
-        nom_produit = (rexel and rexel.get("nom_produit")) or (sonepar and sonepar.get("nom_produit")) or (yesss and yesss.get("nom_produit")) or "Nom inconnu"
-        
-        
-        data = {
-            "référence_fabricant": ref_fab,
-            "nom_produit": nom_produit,
-            "url_produit_rexel": rexel.get("url_produit") if rexel else "",
-            "image_produit_rexel": rexel.get("image_produit") if rexel else "",
-            "url_produit_sonepar": sonepar.get("url_produit") if sonepar else "",
-            "image_produit_sonepar": sonepar.get("image_produit") if sonepar else "",
-            "url_produit_yesss": yesss.get("url_produit") if yesss else "",
-            "image_produit_yesss": yesss.get("image_produit") if yesss else ""
-        }
-
-        if rexel or sonepar or yesss:
-            print(f"\n🔍 Produit trouvé : {nom_produit}")
-            print(f"Référence fabricant : {data['référence_fabricant']}")
-            print(f"URL produit Rexel : {data['url_produit_rexel']}")
-            print(f"Image produit Rexel : {data['image_produit_rexel']}")
-            print(f"URL produit Sonepar : {data['url_produit_sonepar']}")
-            print(f"Image produit Sonepar : {data['image_produit_sonepar']}")
-            print(f"URL produit Yesss : {data['url_produit_yesss']}")
-            print(f"Image produit Yesss : {data['image_produit_yesss']}")
-            sauvegarder_produit_csv(data)
-            print("✅ Produit ajouté au fichier produits.csv")
-        else:
-            print("❌ Produit non trouvé.")
-            sys.exit(1)
+        print(json.dumps([]))  # Produit non trouvé
+        sys.exit(1)
