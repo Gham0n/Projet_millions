@@ -89,7 +89,7 @@ Si le champ est vide :
 Retourne toute la base de données
 
 ## 🧩 Améliorations possibles
--Pagination des résultats
--Passage à une vraie base de données (SQLite, PostgreSQL…)
--Interface d’administration
--Filtres par fournisseur, prix, marque…
+- Pagination des résultats
+- Passage à une vraie base de données (SQLite, PostgreSQL…)
+- Interface d’administration
+- Filtres par fournisseur, prix, marque…
