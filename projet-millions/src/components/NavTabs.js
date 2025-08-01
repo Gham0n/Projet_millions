@@ -3,48 +3,47 @@ import React from 'react';
 const styles = {
   nav: {
     display: 'flex',
-    gap: '15px',
     justifyContent: 'center',
-    backgroundColor: '#0070f3',
-    padding: '10px 0',
-  },
-  navButton: {
-    backgroundColor: 'transparent',
-    border: 'none',
-    color: '#cce0ff',
-    fontSize: '16px',
-    cursor: 'pointer',
-    padding: '8px 16px',
-    borderRadius: '5px',
-    transition: 'background-color 0.3s',
-  },
-  activeNavButton: {
-    backgroundColor: '#3641dbff',
+    backgroundColor: '#00a8cc',
+    padding: '8px 0',
+    gap: '40px',
+    fontSize: '14px',
+    fontWeight: 'bold',
     color: '#fff',
+  },
+  link: {
+    textDecoration: 'none',
+    color: '#fff',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+  },
+  active: {
+    backgroundColor: '#005163ff',
   },
 };
 
 export default function NavTabs({ activeTab, setActiveTab }) {
   const tabs = [
     { id: 'accueil', label: 'Accueil' },
-    { id: 'recherche', label: 'Recherche' },
-    { id: 'contact', label: 'Contact' },
-    { id: 'apropos', label: 'À propos' },
+    { id: 'nos produits', label: 'Nos produits' },
+    { id: 'nouveau', label: 'Nouveau' },
+    { id: 'partenaires', label: 'Nos partenaires' },
   ];
 
   return (
     <nav style={styles.nav}>
       {tabs.map((tab) => (
-        <button
+        <div
           key={tab.id}
           onClick={() => setActiveTab(tab.id)}
           style={{
-            ...styles.navButton,
-            ...(activeTab === tab.id ? styles.activeNavButton : {}),
+            ...styles.link,
+            ...(activeTab === tab.id ? styles.active : {}),
           }}
         >
           {tab.label}
-        </button>
+        </div>
       ))}
     </nav>
   );
