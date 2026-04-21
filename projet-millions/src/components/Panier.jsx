@@ -3,13 +3,62 @@ import { useAuth } from "./AuthContext";
 
 const API = "http://localhost:4000";
 
-// Mapping fournisseur → URL de redirection (à adapter selon les vraies URLs)
-const FOURNISSEUR_REDIRECT = {
-  Rexel: "https://www.rexel.fr/fre/cart",
-  Sonepar: "https://www.sonepar.fr/cart",
-  Yess: "https://www.yesss.fr/cart",
-  Yesss: "https://www.yesss.fr/cart",
+// Configuration par fournisseur
+// cartUrl    : page panier (ouverture onglet)
+// addToCart  : endpoint pour ajouter au panier (POST, requiert CSRF session → non utilisable cross-origin)
+// apiUrl     : endpoint API officielle partenaire (null = pas encore intégré)
+const FOURNISSEUR_CONFIG = {
+  Rexel: {
+    cartUrl: "https://www.rexel.fr/frx/cart",
+    addToCart: "https://www.rexel.fr/frx/cart/addProductToCart",
+    apiUrl: null,
+    label: "Rexel",
+    csvSeparator: ";",
+    csvHeaders: "ID Rexel;Référence;Désignation;Quantité",
+    buildCsvRow: (item) =>
+      `${item.rexel_product_id || ""};${item.rexel_product_code || item.ref_fabricant};${item.nom || ""};${item.quantite}`,
+  },
+  Sonepar: {
+    cartUrl: "https://www.sonepar.fr/cart",
+    addToCart: null,
+    apiUrl: null,
+    label: "Sonepar",
+    csvSeparator: ";",
+    csvHeaders: "Référence fabricant;Quantité",
+    buildCsvRow: (item) => `${item.ref_fabricant};${item.quantite}`,
+  },
+  Yesss: {
+    cartUrl: "https://www.yesss.fr/cart",
+    addToCart: null,
+    apiUrl: null,
+    label: "Yesss",
+    csvSeparator: ";",
+    csvHeaders: "Référence fabricant;Quantité",
+    buildCsvRow: (item) => `${item.ref_fabricant};${item.quantite}`,
+  },
+  Yess: {
+    cartUrl: "https://www.yesss.fr/cart",
+    addToCart: null,
+    apiUrl: null,
+    label: "Yesss",
+    csvSeparator: ";",
+    csvHeaders: "Référence fabricant;Quantité",
+    buildCsvRow: (item) => `${item.ref_fabricant};${item.quantite}`,
+  },
 };
+
+// Génère et télécharge un fichier CSV pour le fournisseur
+function telechargerCSV(fournisseur, items, config) {
+  const lignes = [config.csvHeaders, ...items.map(config.buildCsvRow)];
+  const contenu = lignes.join("\n");
+  const blob = new Blob(["\uFEFF" + contenu], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `commande_${fournisseur.toLowerCase()}_2hbc.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Panier() {
   useAuth(); // garde le contexte auth actif
@@ -17,7 +66,8 @@ export default function Panier() {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [redirecting, setRedirecting] = useState(null); // nom du fournisseur en cours
+  const [redirecting, setRedirecting] = useState(null);
+  const [modalCommande, setModalCommande] = useState(null); // { fournisseur, items }
 
   // Charger le panier
   const fetchPanier = async () => {
@@ -79,36 +129,39 @@ export default function Panier() {
     }
   };
 
-  // Tout commander (tous les fournisseurs)
+  // Tout commander : CSV + onglet pour chaque fournisseur
   const toutCommander = () => {
     const groupes = grouperParFournisseur(articles);
-    Object.entries(groupes).forEach(([fournisseur, items]) => {
-      redirectFournisseur(fournisseur, items);
+    const entries = Object.entries(groupes);
+
+    entries.forEach(([fournisseur, items]) => {
+      const config = FOURNISSEUR_CONFIG[fournisseur];
+      if (!config) return;
+      telechargerCSV(fournisseur, items, config);
+      window.open(config.cartUrl, "_blank");
     });
+
+    // Modal sur le premier fournisseur
+    if (entries.length > 0) {
+      const [fournisseur, items] = entries[0];
+      const config = FOURNISSEUR_CONFIG[fournisseur];
+      if (config) setModalCommande({ fournisseur, items, config });
+    }
   };
 
-  // Redirection vers un fournisseur avec le panier prérempli
+  // Commander chez un fournisseur : CSV + ouverture du panier
   const redirectFournisseur = (fournisseur, items) => {
-    setRedirecting(fournisseur);
-
-    const baseUrl = FOURNISSEUR_REDIRECT[fournisseur];
-    if (!baseUrl) {
-      alert(`URL de redirection non configurée pour ${fournisseur}`);
-      setRedirecting(null);
+    const config = FOURNISSEUR_CONFIG[fournisseur];
+    if (!config) {
+      alert(`Fournisseur non configuré : ${fournisseur}`);
       return;
     }
-
-    // Construction du payload (à adapter selon l'API réelle du fournisseur)
-    const refs = items
-      .map((item) => `${item.ref_fabricant}:${item.quantite}`)
-      .join(",");
-    const url = `${baseUrl}?refs=${encodeURIComponent(refs)}&source=2hbc`;
-
-    // Simuler un délai (vrai redirect serait via form POST ou deep link)
-    setTimeout(() => {
-      window.open(url, "_blank");
-      setRedirecting(null);
-    }, 800);
+    // Télécharger le CSV de commande
+    telechargerCSV(fournisseur, items, config);
+    // Ouvrir la page panier du fournisseur
+    window.open(config.cartUrl, "_blank");
+    // Afficher la modal avec instructions
+    setModalCommande({ fournisseur, items, config });
   };
 
   // Grouper les articles par fournisseur (champ `fournisseur` sur chaque article)
@@ -177,6 +230,16 @@ export default function Panier() {
         <span style={styles.colProduits}>Produits</span>
         <span style={styles.colQuantite}>Quantité</span>
       </div>
+
+      {/* Modal commande rapide */}
+      {modalCommande && (
+        <ModalCommandeRapide
+          fournisseur={modalCommande.fournisseur}
+          items={modalCommande.items}
+          config={modalCommande.config}
+          onClose={() => setModalCommande(null)}
+        />
+      )}
 
       {/* Groupes par fournisseur */}
       {Object.entries(groupes).map(([fournisseur, items]) => (
@@ -265,6 +328,85 @@ export default function Panier() {
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ─── Modal Commande Rapide ─── */
+function ModalCommandeRapide({ fournisseur, items, config, onClose }) {
+  const [csvRetelecharge, setCsvRetelecharge] = useState(false);
+
+  const retelecharger = () => {
+    telechargerCSV(fournisseur, items, config);
+    setCsvRetelecharge(true);
+    setTimeout(() => setCsvRetelecharge(false), 2000);
+  };
+
+  return (
+    <div style={mStyles.overlay} onClick={onClose}>
+      <div style={mStyles.box} onClick={(e) => e.stopPropagation()}>
+        <button style={mStyles.close} onClick={onClose}>✕</button>
+
+        <h3 style={mStyles.titre}>Finaliser votre commande {config.label}</h3>
+
+        <div style={mStyles.steps}>
+          <div style={mStyles.step}>
+            <span style={mStyles.stepNum}>1</span>
+            <span>Un fichier <strong>commande_{fournisseur.toLowerCase()}_2hbc.csv</strong> vient d'être téléchargé sur votre ordinateur.</span>
+          </div>
+          <div style={mStyles.step}>
+            <span style={mStyles.stepNum}>2</span>
+            <span>Sur la page <strong>{config.label}</strong> qui s'est ouverte, connectez-vous à votre compte professionnel.</span>
+          </div>
+          <div style={mStyles.step}>
+            <span style={mStyles.stepNum}>3</span>
+            <span>Utilisez la fonction <strong>"Commande rapide"</strong> ou <strong>"Importer une liste"</strong> et uploadez le CSV.</span>
+          </div>
+        </div>
+
+        <div style={mStyles.tableWrap}>
+          <table style={mStyles.table}>
+            <thead>
+              <tr>
+                {fournisseur === "Rexel" && <th style={mStyles.th}>ID Rexel</th>}
+                <th style={mStyles.th}>Référence</th>
+                <th style={mStyles.th}>Désignation</th>
+                <th style={mStyles.th}>Qté</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  {fournisseur === "Rexel" && (
+                    <td style={{ ...mStyles.td, color: "#64748b", fontSize: 11 }}>
+                      {item.rexel_product_id || "—"}
+                    </td>
+                  )}
+                  <td style={mStyles.td}>{item.rexel_product_code || item.ref_fabricant}</td>
+                  <td style={{ ...mStyles.td, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.nom || "—"}
+                  </td>
+                  <td style={{ ...mStyles.td, textAlign: "center" }}>{item.quantite}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={mStyles.actions}>
+          <button style={mStyles.btnCopier} onClick={retelecharger}>
+            {csvRetelecharge ? "✓ Téléchargé !" : "Re-télécharger le CSV"}
+          </button>
+          <a
+            href={config.cartUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={mStyles.btnQuick}
+          >
+            Ouvrir {config.label} →
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
@@ -474,5 +616,145 @@ const styles = {
     borderTop: `4px solid ${C.teal}`,
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
+  },
+};
+
+const mStyles = {
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+    padding: 16,
+  },
+  box: {
+    background: "#fff",
+    borderRadius: 12,
+    padding: "28px 32px",
+    maxWidth: 560,
+    width: "100%",
+    position: "relative",
+    boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+  },
+  close: {
+    position: "absolute",
+    top: 14,
+    right: 16,
+    background: "none",
+    border: "none",
+    fontSize: 18,
+    cursor: "pointer",
+    color: C.muted,
+  },
+  titre: {
+    fontSize: 18,
+    fontWeight: 700,
+    color: C.navy,
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  desc: {
+    fontSize: 14,
+    color: C.text,
+    lineHeight: 1.6,
+    marginBottom: 16,
+  },
+  steps: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    marginBottom: 16,
+    background: "#f0fdf4",
+    borderRadius: 8,
+    padding: "12px 16px",
+    border: "1px solid #bbf7d0",
+  },
+  step: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    fontSize: 13,
+    color: C.text,
+    lineHeight: 1.5,
+  },
+  stepNum: {
+    background: C.teal,
+    color: "#fff",
+    borderRadius: "50%",
+    width: 20,
+    height: 20,
+    minWidth: 20,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 700,
+    marginTop: 1,
+  },
+  tableWrap: {
+    border: `1px solid ${C.border}`,
+    borderRadius: 8,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontSize: 13,
+  },
+  th: {
+    background: C.bg,
+    padding: "8px 12px",
+    textAlign: "left",
+    fontWeight: 600,
+    color: C.muted,
+    borderBottom: `1px solid ${C.border}`,
+  },
+  td: {
+    padding: "8px 12px",
+    color: C.text,
+    borderBottom: `1px solid ${C.border}`,
+    fontFamily: "monospace",
+  },
+  actions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    marginBottom: 14,
+  },
+  btnCopier: {
+    background: C.teal,
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    padding: "10px 18px",
+    fontWeight: 600,
+    fontSize: 13,
+    cursor: "pointer",
+    flex: 1,
+  },
+  btnQuick: {
+    background: C.navy,
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    padding: "10px 18px",
+    fontWeight: 600,
+    fontSize: 13,
+    cursor: "pointer",
+    flex: 1,
+    textDecoration: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  note: {
+    fontSize: 12,
+    color: C.muted,
+    margin: 0,
+    lineHeight: 1.5,
   },
 };

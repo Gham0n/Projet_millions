@@ -33,7 +33,10 @@ module.exports = (db) => {
           p.image_rexel AS image_url,
           p.prix_rexel,
           p.prix_sonepar,
-          p.prix_yesss
+          p.prix_yesss,
+          p.url_rexel,
+          p.url_sonepar,
+          p.url_yesss
         FROM articles_panier ap
         JOIN paniers pa ON pa.id = ap.panier_id
         JOIN produits p ON p.id = ap.produit_id
@@ -46,6 +49,19 @@ module.exports = (db) => {
         if (a.fournisseur === 'Rexel') prix = a.prix_rexel;
         else if (a.fournisseur === 'Sonepar') prix = a.prix_sonepar;
         else if (a.fournisseur === 'Yesss') prix = a.prix_yesss;
+
+        // Extraire l'ID interne Rexel depuis l'URL (dernier segment après /p/)
+        let rexel_product_id = null;
+        let rexel_product_code = null;
+        if (a.url_rexel) {
+          const segs = a.url_rexel.split('/').filter(Boolean);
+          const pIdx = segs.lastIndexOf('p');
+          if (pIdx !== -1 && segs[pIdx + 1]) {
+            rexel_product_id = segs[pIdx + 1];
+            rexel_product_code = segs[pIdx - 1] || null;
+          }
+        }
+
         return {
           id: a.id,
           quantite: a.quantite,
@@ -55,6 +71,8 @@ module.exports = (db) => {
           ref_fabricant: a.ref_fabricant,
           image_url: a.image_url,
           prix,
+          rexel_product_id,
+          rexel_product_code,
         };
       });
 
